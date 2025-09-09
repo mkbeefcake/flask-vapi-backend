@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from twilio.rest import Client
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 from google.oauth2 import service_account
@@ -11,6 +11,7 @@ import dateparser
 import os
 import pyshorteners
 import uuid
+import urllib
 
 app = Flask(__name__)
 
@@ -45,6 +46,24 @@ def make_calendar_public(service, calendar_id):
         print(f"Failed to set calendar public (may already be public): {e}")
 
 
+def make_event_public_and_get_link(service, calendar_id, event_id):
+    """Updates an event's visibility to public and returns its link."""
+    try:
+        # Patch the event to change its visibility
+        event_body = {'visibility': 'public'}
+        public_event = service.events().patch(
+            calendarId=calendar_id, 
+            eventId=event_id, 
+            body=event_body
+        ).execute()
+        
+        return public_event.get('htmlLink')
+
+    except Exception as e:
+        print(f"Failed to update event visibility: {e}")
+        return None
+    
+
 @app.route("/book_dentist", methods=['POST'])
 def book_dentist():
     data = request.json
@@ -69,13 +88,16 @@ def book_dentist():
     start_dt = start_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
     end_dt = end_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
 
+    start_dt_utc = start_dt.astimezone(timezone.utc)
+    end_dt_utc = end_dt.astimezone(timezone.utc)
+
     # Format for Google Calendar (UTC)
-    start_str = start_dt.strftime("%Y%m%dT%H%M%SZ")
-    end_str = end_dt.strftime("%Y%m%dT%H%M%SZ")
+    start_str = start_dt_utc.strftime("%Y%m%dT%H%M%SZ")
+    end_str = end_dt_utc.strftime("%Y%m%dT%H%M%SZ")
 
     # Create Google Calendar link
     event_title = quote(f"{appointment_type} Dental Clinic")
-    event_details = quote(f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic")
+    event_details = quote(f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nContact:{GMAIL_ACCOUNT}")
 
 
     try:
@@ -85,16 +107,10 @@ def book_dentist():
         )
         service = build('calendar', 'v3', credentials=credentials)
 
-        # Step 1: Create a public calendar (run this part once)
-        new_calendar_body = {'summary': 'Shared Events', 'timeZone': 'America/Toronto'}
-        created_calendar = service.calendars().insert(body=new_calendar_body).execute()
-        calendar_id = created_calendar['id']
-        make_calendar_public(service, calendar_id)
-
         # Create event
         event = {
             'summary': f'{appointment_type} Dental Clinic',
-            'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic",
+            'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nContact:{GMAIL_ACCOUNT}",
             'start': {
                 'dateTime': start_dt.isoformat(),
                 'timeZone': 'America/Toronto',
@@ -110,8 +126,21 @@ def book_dentist():
                 }
             }
         }
-        created_event = service.events().insert(calendarId=calendar_id, body=event).execute()
-        calendar_link = created_event.get('htmlLink')    
+        created_event = service.events().insert(calendarId=GMAIL_ACCOUNT, body=event).execute()
+
+        # Create RENDER LINK STRING
+        params = {
+            'action': 'TEMPLATE',
+            'text': f"{appointment_type} Dental Clinic",
+            'details': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nContact:{GMAIL_ACCOUNT}",
+            'dates': f"{start_str}/{end_str}",
+            'ctz': 'America/Toronto',
+        }
+
+        # Use urllib.parse to safely encode the parameters
+        query_string = urllib.parse.urlencode(params)
+        base_url = 'https://www.google.com/calendar/render?'       
+        calendar_link = base_url + query_string 
         short_url = shorten_url(calendar_link)
 
         # Create Twilio SMS body
