@@ -164,25 +164,29 @@ def book_dentist():
 
         # 3. Create calendar event in Clinic's gmail account
         # Create event
-        event = {
-            'summary': f'Rescheduled: {appointment_type} Dental Clinic' if is_rescheduling else f'{appointment_type} Dental Clinic' ,
-            'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
-            'start': {
-                'dateTime': (new_start_dt.isoformat() if new_start_dt else "") if is_rescheduling else (start_dt.isoformat() if start_dt else ""),
-                'timeZone': 'America/Toronto',
-            },
-            'end': {
-                'dateTime': (new_end_dt.isoformat() if new_end_dt else "" ) if is_rescheduling else (new_end_dt.isoformat() if new_end_dt else ""),
-                'timeZone': 'America/Toronto',
-            },
-            'conferenceData': {
-                'createRequest': {
-                    'requestId': str(uuid.uuid4()),
-                    'conferenceSolutionKey': {'type': 'hangoutsMeet'}
+        try:
+            event = {
+                'summary': f'Rescheduled: {appointment_type} Dental Clinic' if is_rescheduling else f'{appointment_type} Dental Clinic' ,
+                'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
+                'start': {
+                    'dateTime': (new_start_dt.isoformat() if new_start_dt else "") if is_rescheduling else (start_dt.isoformat() if start_dt else ""),
+                    'timeZone': 'America/Toronto',
+                },
+                'end': {
+                    'dateTime': (new_end_dt.isoformat() if new_end_dt else "" ) if is_rescheduling else (new_end_dt.isoformat() if new_end_dt else ""),
+                    'timeZone': 'America/Toronto',
+                },
+                'conferenceData': {
+                    'createRequest': {
+                        'requestId': str(uuid.uuid4()),
+                        'conferenceSolutionKey': {'type': 'hangoutsMeet'}
+                    }
                 }
             }
-        }
-        created_event = service.events().insert(calendarId=GMAIL_ACCOUNT, body=event).execute()
+            created_event = service.events().insert(calendarId=GMAIL_ACCOUNT, body=event).execute()
+        except Exception as e:
+            print(f"Failed to create google calendar: {str(e)}")
+            pass
 
         # 4. Create Calendar Render URL for patient
         # Create RENDER LINK STRING
