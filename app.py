@@ -12,6 +12,7 @@ import os
 import pyshorteners
 import uuid
 import urllib
+import gspread
 
 app = Flask(__name__)
 
@@ -21,9 +22,14 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 GMAIL_ACCOUNT = os.getenv("GMAIL_ACCOUNT")
+SPREAD_SHEET = os.getenv("SPREAD_SHEET")
 
 SERVICE_ACCOUNT_FILE = "vapi-dentist-book-222f512f966f.json"
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
+    "https://www.googleapis.com/auth/spreadsheets",     # full access to sheets
+    "https://www.googleapis.com/auth/drive"             # sometimes needed for open_by_key/open
+]
 
 
 def shorten_url(long_url):
@@ -72,8 +78,12 @@ def book_dentist():
     
     customer_number = data.get("customer_number")
     patient_name = data.get('patient_name')
-    appointment_type = data.get("appointment_type")
     appointment_datetime = data.get("appointment_datetime")
+    appointment_type = data.get("appointment_type", "Urgent")
+    previous_dentist_name = data.get("previous_dentist_name", "")
+    dentist_name = data.get("dentist_name", previous_dentist_name)
+
+    print(f"Name: {patient_name}, DateTime: {appointment_datetime}, Type: {appointment_type}, prevDen: {previous_dentist_name}, Den: {dentist_name}\n")
 
     # validate customer number
     if not customer_number:
@@ -99,18 +109,36 @@ def book_dentist():
     event_title = quote(f"{appointment_type} Dental Clinic")
     event_details = quote(f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nContact:{GMAIL_ACCOUNT}")
 
-
     try:
+
+        # 1. Create Service account
         # Authenticate using service account
         credentials = service_account.Credentials.from_service_account_file(
             SERVICE_ACCOUNT_FILE, scopes=SCOPES
         )
         service = build('calendar', 'v3', credentials=credentials)
 
+        # 2. Update the Google Spreedsheet in Clinic's gmail account
+        # 
+        now_toronto = datetime.now(ZoneInfo("America/Toronto"))
+        current_datetime = now_toronto.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+        try:
+            spread_client = gspread.authorize(credentials=credentials)
+            spreadsheet = spread_client.open(SPREAD_SHEET)
+            sheet = spreadsheet.sheet1 
+            sheet.append_row([patient_name, customer_number, appointment_datetime, start_str, appointment_type, dentist_name, current_datetime])
+    
+            pass
+        except Exception as e:
+            print(f"Failed to open spreadsheet: {str(e)}")
+            pass
+
+        # 3. Create calendar event in Clinic's gmail account
         # Create event
         event = {
             'summary': f'{appointment_type} Dental Clinic',
-            'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nContact:{GMAIL_ACCOUNT}",
+            'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
             'start': {
                 'dateTime': start_dt.isoformat(),
                 'timeZone': 'America/Toronto',
@@ -128,11 +156,12 @@ def book_dentist():
         }
         created_event = service.events().insert(calendarId=GMAIL_ACCOUNT, body=event).execute()
 
+        # 4. Create Calendar Render URL for patient
         # Create RENDER LINK STRING
         params = {
             'action': 'TEMPLATE',
             'text': f"{appointment_type} Dental Clinic",
-            'details': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nContact:{GMAIL_ACCOUNT}",
+            'details': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
             'dates': f"{start_str}/{end_str}",
             'ctz': 'America/Toronto',
         }
@@ -145,7 +174,7 @@ def book_dentist():
 
         # Create Twilio SMS body
         sms_body = f"Hello {patient_name}, your {appointment_type} appointment is scheduled. Click here to add it to your Google Calendar: {short_url}"
-        print(calendar_link)    
+        print(calendar_link)
         print(sms_body)
 
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
