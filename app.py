@@ -98,6 +98,7 @@ def book_dentist():
     end_str = ""
 
     start_dt = dateparser.parse(appointment_datetime, settings={"TIMEZONE": "America/Toronto", "RETURN_AS_TIMEZONE_AWARE": True})
+    end_dt = dateparser.parse(appointment_datetime, settings={"TIMEZONE": "America/Toronto", "RETURN_AS_TIMEZONE_AWARE": True})
     if start_dt:
         end_dt = start_dt + timedelta(minutes=30)  # <-- changed from hours=1 to minutes=30
         start_dt = start_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
@@ -115,6 +116,7 @@ def book_dentist():
     new_start_str = ""
     new_end_str = ""
     new_start_dt = dateparser.parse(new_appointment_datetime, settings={"TIMEZONE": "America/Toronto", "RETURN_AS_TIMEZONE_AWARE": True})
+    new_end_dt = dateparser.parse(new_appointment_datetime, settings={"TIMEZONE": "America/Toronto", "RETURN_AS_TIMEZONE_AWARE": True})
     if new_start_dt:        
         new_end_dt = new_start_dt + timedelta(minutes=30)  # <-- changed from hours=1 to minutes=30
         new_start_dt = new_start_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
