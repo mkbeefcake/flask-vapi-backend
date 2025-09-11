@@ -80,10 +80,10 @@ def book_dentist():
     
     customer_number = data.get("customer_number", "")
     patient_name = data.get('patient_name')
-    appointment_datetime = data.get("appointment_datetime")
+    appointment_datetime = data.get("appointment_datetime", "")
     appointment_type = data.get("appointment_type", "Urgent")
     previous_dentist_name = data.get("previous_dentist_name", "")
-    dentist_name = data.get("dentist_name", previous_dentist_name)
+    dentist_name = data.get("dentist_name", "")
     intention = data.get("intention", "")
     new_appointment_datetime = data.get("new_appointment_datetime", "")
 
@@ -168,11 +168,11 @@ def book_dentist():
             'summary': f'Rescheduled: {appointment_type} Dental Clinic' if is_rescheduling else f'{appointment_type} Dental Clinic' ,
             'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
             'start': {
-                'dateTime': new_start_dt.isoformat() if is_rescheduling else start_dt.isoformat(),
+                'dateTime': (new_start_dt.isoformat() if new_start_dt else "") if is_rescheduling else (start_dt.isoformat() if start_dt else ""),
                 'timeZone': 'America/Toronto',
             },
             'end': {
-                'dateTime': new_end_dt.isoformat() if is_rescheduling else new_end_dt.isoformat(),
+                'dateTime': (new_end_dt.isoformat() if new_end_dt else "" ) if is_rescheduling else (new_end_dt.isoformat() if new_end_dt else ""),
                 'timeZone': 'America/Toronto',
             },
             'conferenceData': {
