@@ -76,34 +76,59 @@ def book_dentist():
     if not data:
         return jsonify(status="failure", error="Invalid or missing parameters"), 500
     
-    customer_number = data.get("customer_number")
+    is_rescheduling = False
+    
+    customer_number = data.get("customer_number", "")
     patient_name = data.get('patient_name')
     appointment_datetime = data.get("appointment_datetime")
     appointment_type = data.get("appointment_type", "Urgent")
     previous_dentist_name = data.get("previous_dentist_name", "")
     dentist_name = data.get("dentist_name", previous_dentist_name)
+    intention = data.get("intention", "")
+    new_appointment_datetime = data.get("new_appointment_datetime", "")
 
-    print(f"Name: {patient_name}, DateTime: {appointment_datetime}, Type: {appointment_type}, prevDen: {previous_dentist_name}, Den: {dentist_name}\n")
+    print(f"Customer_number Intention: {intention}, Name: {patient_name}, DateTime: {appointment_datetime}, New Date: {new_appointment_datetime}, Type: {appointment_type}, prevDen: {previous_dentist_name}, Den: {dentist_name}\n")
 
-    # validate customer number
-    if not customer_number:
-        return jsonify(status="failure", err="Invalid customer phone number"), 500
+    if dentist_name == "":
+        dentist_name = previous_dentist_name
 
+    # Booking Date Time
     # Parse appointment datetime and calculate end time (+30 mins by default)
+    start_str = ""
+    end_str = ""
+
     start_dt = dateparser.parse(appointment_datetime, settings={"TIMEZONE": "America/Toronto", "RETURN_AS_TIMEZONE_AWARE": True})
-    if not start_dt:
-        return jsonify(status="failure", error="Invalid datetime format"), 500
+    if start_dt:
+        end_dt = start_dt + timedelta(minutes=30)  # <-- changed from hours=1 to minutes=30
+        start_dt = start_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
+        end_dt = end_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
 
-    end_dt = start_dt + timedelta(minutes=30)  # <-- changed from hours=1 to minutes=30
-    start_dt = start_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
-    end_dt = end_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
+        start_dt_utc = start_dt.astimezone(timezone.utc)
+        end_dt_utc = end_dt.astimezone(timezone.utc)
 
-    start_dt_utc = start_dt.astimezone(timezone.utc)
-    end_dt_utc = end_dt.astimezone(timezone.utc)
+        # Format for Google Calendar (UTC)
+        start_str = start_dt_utc.strftime("%Y%m%dT%H%M%SZ")
+        end_str = end_dt_utc.strftime("%Y%m%dT%H%M%SZ")
 
-    # Format for Google Calendar (UTC)
-    start_str = start_dt_utc.strftime("%Y%m%dT%H%M%SZ")
-    end_str = end_dt_utc.strftime("%Y%m%dT%H%M%SZ")
+    # Rescheduling Date Time
+    # Parse new appointment datetime and calculate end time (+30 mins by default)
+    new_start_str = ""
+    new_end_str = ""
+    new_start_dt = dateparser.parse(new_appointment_datetime, settings={"TIMEZONE": "America/Toronto", "RETURN_AS_TIMEZONE_AWARE": True})
+    if new_start_dt:        
+        new_end_dt = new_start_dt + timedelta(minutes=30)  # <-- changed from hours=1 to minutes=30
+        new_start_dt = new_start_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
+        new_end_dt = new_end_dt.replace(tzinfo=ZoneInfo("America/Toronto"))
+
+        new_start_dt_utc = new_start_dt.astimezone(timezone.utc)
+        new_end_dt_utc = new_end_dt.astimezone(timezone.utc)
+
+        # Format for Google Calendar (UTC)
+        new_start_str = new_start_dt_utc.strftime("%Y%m%dT%H%M%SZ")
+        new_end_str = new_end_dt_utc.strftime("%Y%m%dT%H%M%SZ")
+        
+        is_rescheduling = True
+
 
     # Create Google Calendar link
     event_title = quote(f"{appointment_type} Dental Clinic")
@@ -127,7 +152,8 @@ def book_dentist():
             spread_client = gspread.authorize(credentials=credentials)
             spreadsheet = spread_client.open(SPREAD_SHEET)
             sheet = spreadsheet.sheet1 
-            sheet.append_row([patient_name, customer_number, appointment_datetime, start_str, appointment_type, dentist_name, current_datetime])
+            sheet.append_row([intention, patient_name, customer_number, appointment_datetime, start_str, 
+                              new_appointment_datetime, new_start_str, appointment_type, dentist_name, current_datetime])
     
             pass
         except Exception as e:
@@ -137,14 +163,14 @@ def book_dentist():
         # 3. Create calendar event in Clinic's gmail account
         # Create event
         event = {
-            'summary': f'{appointment_type} Dental Clinic',
+            'summary': f'Rescheduled: {appointment_type} Dental Clinic' if is_rescheduling else f'{appointment_type} Dental Clinic' ,
             'description': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
             'start': {
-                'dateTime': start_dt.isoformat(),
+                'dateTime': new_start_dt.isoformat() if is_rescheduling else start_dt.isoformat(),
                 'timeZone': 'America/Toronto',
             },
             'end': {
-                'dateTime': end_dt.isoformat(),
+                'dateTime': new_end_dt.isoformat() if is_rescheduling else new_end_dt.isoformat(),
                 'timeZone': 'America/Toronto',
             },
             'conferenceData': {
@@ -160,9 +186,9 @@ def book_dentist():
         # Create RENDER LINK STRING
         params = {
             'action': 'TEMPLATE',
-            'text': f"{appointment_type} Dental Clinic",
+            'text': f"Rescheduled: {appointment_type} Dental Clinic" if is_rescheduling else f"{appointment_type} Dental Clinic",
             'details': f"Patient: {patient_name}\nPhone: {customer_number}\nType: {appointment_type} Dental Clinic\nDentist:{dentist_name}\nContact:{GMAIL_ACCOUNT}",
-            'dates': f"{start_str}/{end_str}",
+            'dates': f"{new_start_str}/{new_end_str}" if is_rescheduling else f"{start_str}/{end_str}",
             'ctz': 'America/Toronto',
         }
 
@@ -189,6 +215,7 @@ def book_dentist():
         })
 
     except Exception as e:
+        print(f"Error happened: {str(e)}")
         return jsonify({"status": "failure", "error": str(e)}), 500
 
 @app.route('/')
