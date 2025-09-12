@@ -2,26 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Hotel Booking</title>
+    <title>VAPI.AI backend service</title>
 </head>
 <body>
-    <h1>Ethan - AI Hotel Receptionist Booking System</h1>
-
-    <h2>Bookings</h2>
-    <ul>
-        {% for booking in bookings %}
-            <li>{{ booking.full_name }} booked Room {{booking.name}} from {{booking.check_in}} to {{booking.check_out}}</li>
-        {% endfor %}
-    </ul>
-
-    <h2>Available Rooms</h2>
-    <ul>
-        {% for room in rooms %}
-            <li>
-                Room {{ room.name }} ({{ room.room_type }}) with [ {{room.equipments}} ]
-            </li>
-        {% endfor %}
-    </ul>
-
 </body>
 </html>
