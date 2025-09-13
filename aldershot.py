@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import pytz
 import gspread
 import os
+import json
 
 load_dotenv()
 
@@ -345,6 +346,17 @@ def format_time_slots(available_slots: Dict[str, List[datetime]]) -> str:
     
     return ", ".join(formatted_days)
 
+def get_mode():
+    raw_data = request.args.get("data")  # this is a string
+    if raw_data:
+        try:
+            data = json.loads(raw_data)  # parse JSON string
+        except Exception as e:
+            return {"error": f"Invalid JSON: {e}"}, 400
+    else:
+        data = {}
+
+    return data
 
 def extract_event_details(event: dict) -> dict:
     """
@@ -551,8 +563,8 @@ def cancel():
             message_body=(
                 f"Hello {patient_name}, "
                 "Your appointment has been cancelled successfully."
-                f"Service: {existing_event_detail['service_type'] if 'service_type' in existing_event_detail else ""}"
-                f"BookTime: {existing_event_detail['start_time'] if 'start_time' in existing_event_detail else ""}."
+                f"Service: {existing_event_detail['service_type'] if 'service_type' in existing_event_detail else ''}"
+                f"BookTime: {existing_event_detail['start_time'] if 'start_time' in existing_event_detail else ''}."
             )
         )
 
@@ -675,7 +687,7 @@ def reschedule():
                 f"Hello {patient_name}, "
                 f"Your appointment has been rescheduled to {new_appointment_dt.strftime('%B %d, %Y at %I:%M %p')} "
                 "Toronto time. "
-                f"From: {existing_event_detail['start_time'] if 'start_time' in existing_event_detail else ""}"
+                f"From: {existing_event_detail['start_time'] if 'start_time' in existing_event_detail else ''}"
             )
         )
 
@@ -686,12 +698,13 @@ def reschedule():
 
     return {"rescheduling_appointment_status": "success"}
 
-@asbp.route("/find_existing", methods=['GET'])
+@asbp.route("/find_existing", methods=['POST'])
 def find_existing():
     try:
+        data = request.get_json()
         # Get and validate required parameters
-        patient_name = request.args.get('patient_name')
-        patient_phone = request.args.get('patient_phone')
+        patient_name = data.get('patient_name')
+        patient_phone = data.get('patient_phone')
         
         print(f"@reschedule: patient name: {patient_name}, number: {patient_phone}")
         if not patient_name or not patient_phone:
@@ -870,11 +883,12 @@ def book():
     except Exception as e:
         return {"booking_status": f"error : {str(e)}"}, 500
 
-@asbp.route("/get_available", methods=['GET'])
+@asbp.route("/get_available", methods=['POST'])
 def get_available():
     try:
         # Get and validate dentist parameter
-        dentist = request.args.get('dentist')
+        data = request.get_json()
+        dentist = data.get('dentist')
         if not dentist:
             dentist = ""
 
