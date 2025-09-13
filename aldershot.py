@@ -183,8 +183,17 @@ def validate_appointment_params(
     - Tuple[is_valid: bool, error_message: str, parsed_datetime: Optional[datetime]]
     """
     # Validate required fields are not empty
-    if not all([patient_name, patient_phone, service_type, dentist, appointment_date]):
-        return False, "Missing required fields", None
+    if not patient_name:
+        return False, "Missed the Patient Name", None
+
+    if not patient_phone:
+        return False, "Missed the Patient phone number", None
+    
+    if not service_type:
+        return False, "Missed the Service from Denture Clinic", None
+
+    if not appointment_date:
+        return False, "Missed the Appointment date time", None
 
     # Validate phone number format (basic validation)
     if not patient_phone.startswith('+') or not patient_phone[1:].isdigit():
@@ -541,9 +550,9 @@ def cancel():
             to_number=patient_phone,
             message_body=(
                 f"Hello {patient_name}, "
-                "Your appointment has been cancelled successfully. "
-                "Thank you for letting us know. "
-                "For any questions, please contact our office."
+                "Your appointment has been cancelled successfully."
+                f"Service: {existing_event_detail['service_type'] if 'service_type' in existing_event_detail else ""}"
+                f"BookTime: {existing_event_detail['start_time'] if 'start_time' in existing_event_detail else ""}."
             )
         )
 
@@ -666,7 +675,7 @@ def reschedule():
                 f"Hello {patient_name}, "
                 f"Your appointment has been rescheduled to {new_appointment_dt.strftime('%B %d, %Y at %I:%M %p')} "
                 "Toronto time. "
-                "If you need to make any changes, please contact our office."
+                f"From: {existing_event_detail['start_time'] if 'start_time' in existing_event_detail else ""}"
             )
         )
 
@@ -681,8 +690,10 @@ def reschedule():
 def find_existing():
     try:
         # Get and validate required parameters
-        patient_name = request.args.get('patient_name')
-        patient_phone = request.args.get('patient_phone')
+        data = request.get_json()
+
+        patient_name = data.get('patient_name')
+        patient_phone = data.get('patient_phone')
         
         print(f"@reschedule: patient name: {patient_name}, number: {patient_phone}")
         if not patient_name or not patient_phone:
@@ -749,7 +760,7 @@ def book():
         patient_name = data.get('patient_name')
         patient_phone = data.get('patient_phone')
         service_type = data.get('service_type')
-        dentist = data.get('dentist')
+        dentist = data.get('dentist', "Non - Indicated")
         appointment_date = data.get('appointment_date')
         referral = data.get('referral')
         insurance_name = data.get('insurance_name')
