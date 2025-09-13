@@ -690,10 +690,8 @@ def reschedule():
 def find_existing():
     try:
         # Get and validate required parameters
-        data = request.get_json()
-
-        patient_name = data.get('patient_name')
-        patient_phone = data.get('patient_phone')
+        patient_name = request.args.get('patient_name')
+        patient_phone = request.args.get('patient_phone')
         
         print(f"@reschedule: patient name: {patient_name}, number: {patient_phone}")
         if not patient_name or not patient_phone:
