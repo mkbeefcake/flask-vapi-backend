@@ -22,7 +22,7 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 GMAIL_ACCOUNT = os.getenv("GMAIL_ACCOUNT")
 SPREAD_SHEET = os.getenv("SPREAD_SHEET")
-SERVICE_TIME = os.getenv("SERVICE_TIME")
+SERVICE_TIME = int(os.getenv("SERVICE_TIME", 60))
 ALDERSHOT_DENTURE_CLINIC = os.getenv("ALDERSHOT_DENTURE_CLINIC")
 
 SERVICE_ACCOUNT_FILE = "vapi-dentist-book-222f512f966f.json"
@@ -275,7 +275,6 @@ def get_time_slots(date: datetime) -> List[datetime]:
     
     return slots
 
-Apply
 def format_time_slots(available_slots: Dict[str, List[datetime]]) -> str:
     """
     Convert available slots into format like "Thursday 9:00 am ~ 17:00 pm, Friday 11:00 am ~ 4:00 pm"
@@ -767,7 +766,7 @@ def book():
         )
 
         if not is_valid:
-            return {"booking_status": f"error: {error_message}"}
+            return {"booking_status": f"error: {error_message}"}, 400
 
         # Initialize the Calendar API service
         service = get_calendar_service()

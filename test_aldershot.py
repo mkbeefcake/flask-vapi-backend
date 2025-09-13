@@ -131,8 +131,7 @@ class TestAldershotEndpoints(unittest.TestCase):
         
         self.assertEqual(response.status_code, 400)
         data = json.loads(response.data)
-        self.assertEqual(data['status'], 'error')
-        self.assertIn('Missing required fields', data['message'])
+        self.assertEqual(data['booking_status'], 'error: Missing required fields')
 
     @patch('aldershot.get_calendar_service')
     def test_reschedule_appointment_success(self, mock_calendar_service):
